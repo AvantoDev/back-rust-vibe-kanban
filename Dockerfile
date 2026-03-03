@@ -1,5 +1,5 @@
-# Build stage
-FROM node:24-alpine AS builder
+# Build stage (Node from ECR Public to avoid Docker Hub rate limits / auth)
+FROM public.ecr.aws/docker/library/node:24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -25,9 +25,12 @@ ENV VITE_PUBLIC_POSTHOG_HOST=$POSTHOG_API_ENDPOINT
 # Set working directory
 WORKDIR /app
 
-# Copy package files for dependency caching
+# Copy package files for dependency caching (all workspace packages required for pnpm install)
 COPY package*.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/local-web/package*.json ./packages/local-web/
+COPY packages/web-core/package*.json ./packages/web-core/
+COPY packages/ui/package*.json ./packages/ui/
+COPY packages/remote-web/package*.json ./packages/remote-web/
 COPY npx-cli/package*.json ./npx-cli/
 
 # Install pnpm and dependencies
@@ -41,8 +44,8 @@ RUN npm run generate-types
 RUN cd packages/local-web && pnpm run build
 RUN cargo build --release --bin server
 
-# Runtime stage
-FROM alpine:latest AS runtime
+# Runtime stage (Alpine from ECR Public)
+FROM public.ecr.aws/docker/library/alpine:latest AS runtime
 
 # Install runtime dependencies
 RUN apk add --no-cache \
